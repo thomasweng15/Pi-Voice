@@ -10,6 +10,12 @@ import sys
 import os
 import tts
 import stt
+import subprocess
+import getopt
+
+# Paths for the pocketsphinx model and dictionary
+LM = "./pocketsphinx/9374.lm"
+DIC = "./pocketsphinx/9374.dic"
 
 
 class Job:
@@ -28,7 +34,7 @@ class Job:
         return self.raw
 
 
-def main():
+def listen():
     if sys.platform == 'darwin':
         speaker = tts.OSX()
     else:
@@ -61,6 +67,40 @@ def main():
 
     except NotUnderstoodException:
         speaker.say("Sorry, I couldn't understand what you said.")
+
+
+def pocketsphinx_listening():
+    # start the subprocess to continuously listen for 'computer'
+    psphinx_process = subprocess.Popen(['pocketsphinx_continuous', 
+            '-lm', LM, '-dict', DIC], 
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    print "Pi-Voice started. Say 'computer' to activate."
+
+    while 1: 
+        # read each line of output, strip the newline and index numbers
+        psphinx_output = psphinx_process.stdout.readline().rstrip('\n')[11:]
+        if psphinx_output == "COMPUTER":
+            # kill continuous listening so it does not trigger during listen()
+            psphinx_process.kill()
+            listen()
+            # restart continuous listening
+            psphinx_process = subprocess.Popen(['pocketsphinx_continuous', 
+                '-lm', LM, '-dict', DIC], 
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        sys.stdout.flush()
+
+
+def main():
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "c",)
+    except getopt.GetoptError:
+        sys.exit('invalid command line argument.')
+
+    if opts == []:
+        listen()
+    else: 
+        pocketsphinx_listening()
 
 
 if __name__ == "__main__":
